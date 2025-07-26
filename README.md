@@ -30,3 +30,66 @@ IQN гарантирует глобальную уникальность для 
 
 **Enterprise Unique Identifier** (EUI) - eui.0123456789ABCDEF
 
+---
+
+## Практика: автоматизация настройки iSCSI
+
+В репозитории представлены два bash-скрипта для автоматизации настройки iSCSI Target и Initiator:
+
+- `setup_iscsi_without_authentication.sh` — настройка iSCSI без аутентификации (demo mode).
+- `setup_iscsi_with_authentication.sh` — настройка iSCSI с CHAP-аутентификацией.
+
+### Описание скриптов
+
+#### 1. setup_iscsi_without_authentication.sh
+
+- Автоматически устанавливает и настраивает iSCSI Target и Initiator без аутентификации.
+- Использует demo mode (безопасность минимальная, только для тестовых стендов).
+- Все параметры (IP, IQN, устройство) задаются в начале скрипта.
+- Для Target:
+  - Устанавливает targetcli, создает блочное устройство, Target, LUN, настраивает portal.
+  - Отключает аутентификацию, включает автоматическую генерацию ACL.
+  - Открывает порт 3260/tcp в firewall.
+- Для Initiator:
+  - Устанавливает iscsi-initiator-utils.
+  - Прописывает IQN инициатора.
+  - Выполняет обнаружение и подключение к Target.
+  - Включает автоподключение при загрузке.
+
+#### 2. setup_iscsi_with_authentication.sh
+
+- Аналогичен предыдущему, но включает CHAP-аутентификацию.
+- В начале скрипта задаются имя пользователя и пароль для CHAP.
+- Для Target:
+  - Создает ACL для инициатора, задает CHAP-логин/пароль.
+  - Включает обязательную аутентификацию.
+  - Отключает автоматическую генерацию ACL.
+- Для Initiator:
+  - Прописывает CHAP-логин/пароль в `/etc/iscsi/iscsid.conf`.
+  - Подключается к Target с аутентификацией.
+
+### Использование
+
+1. Скопируйте нужный скрипт на соответствующий сервер.
+2. Отредактируйте переменные в начале скрипта (IP-адреса, IQN, имя пользователя/пароль, устройство).
+3. Запустите скрипт с правами root (через `sudo`):
+
+   - Для настройки Target:
+     ```
+     sudo ./setup_iscsi_without_authentication.sh target
+     ```
+     или
+     ```
+     sudo ./setup_iscsi_with_authentication.sh target
+     ```
+
+   - Для настройки Initiator:
+     ```
+     sudo ./setup_iscsi_without_authentication.sh initiator
+     ```
+     или
+     ```
+     sudo ./setup_iscsi_with_authentication.sh initiator
+     ```
+
+4. После выполнения скрипта проверьте подключение командой `lsblk` на инициаторе.
