@@ -3,10 +3,12 @@
 # --- Установка и настройка iSCSI Target без аутентификации ---
 
 # --- Переменные ---
-TARGET_IP="10.100.10.1"
-INITIATOR_IP="10.100.10.2"
-IQN_TARGET="iqn.2025-07.com.example:target"
-IQN_INITIATOR="iqn.2025-07.com.example:initiator"
+TARGET_IP="10.100.10.1"         # IP-адрес сервера iSCSI Target
+INITIATOR_IP="10.100.10.2"      # IP-адрес iSCSI Initiator
+IQN_TARGET="iqn.2025-07.com.example:target"         # IQN для iSCSI Target
+IQN_INITIATOR="iqn.2025-07.com.example:initiator"   # IQN для iSCSI Initiator
+BLOCK_DEVICE="/dev/sdb"         # Блочное устройство, используемое iSCSI Target
+
 
 ### ЦВЕТА ###
 ESC=$(printf '\033') RESET="${ESC}[0m" MAGENTA="${ESC}[35m" RED="${ESC}[31m" GREEN="${ESC}[32m"
@@ -31,8 +33,8 @@ install_target() {
     magentaprint "Устанавливаем и настраиваем iSCSI Target на $TARGET_IP:"
     dnf install -y targetcli
 
-    magentaprint "Создание блочного устройства для iSCSI (используется /dev/sdb):"
-    targetcli /backstores/block create iscsi_disk /dev/sdb
+    magentaprint "Создание блочного устройства для iSCSI (используется $BLOCK_DEVICE):"
+    targetcli /backstores/block create iscsi_disk $BLOCK_DEVICE
 
     magentaprint "Создание нового iSCSI Target с указанным IQN:"
     targetcli /iscsi create $IQN_TARGET
