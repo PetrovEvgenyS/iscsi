@@ -5,8 +5,8 @@
 # --- Переменные ---
 TARGET_IP="10.100.10.1"
 INITIATOR_IP="10.100.10.2"
-IQN_TARGET="iqn.2024-02.com.example:target"
-IQN_INITIATOR="iqn.2024-02.com.example:initiator"
+IQN_TARGET="iqn.2025-07.com.example:target"
+IQN_INITIATOR="iqn.2025-07.com.example:initiator"
 
 ### ЦВЕТА ###
 ESC=$(printf '\033') RESET="${ESC}[0m" MAGENTA="${ESC}[35m" RED="${ESC}[31m" GREEN="${ESC}[32m"
@@ -28,56 +28,78 @@ fi
 
 # --- Функция: установка и настройка iSCSI Target ---
 install_target() {
-    magentaprint "Устанавливаем и настраиваем iSCSI Target на $TARGET_IP"
+    magentaprint "Устанавливаем и настраиваем iSCSI Target на $TARGET_IP:"
     dnf install -y targetcli
 
-    targetcli <<EOF
-/backstores/block create iscsi_disk /dev/sdb
+    magentaprint "Создание блочного устройства для iSCSI (используется /dev/sdb):"
+    targetcli /backstores/block create iscsi_disk /dev/sdb
 
-/iscsi create $IQN_TARGET
+    magentaprint "Создание нового iSCSI Target с указанным IQN:"
+    targetcli /iscsi create $IQN_TARGET
 
-/iscsi/$IQN_TARGET/tpg1/portals/ delete ip_address=0.0.0.0 ip_port=3260
-/iscsi/$IQN_TARGET/tpg1/portals/ create ip_address=$TARGET_IP ip_port=3260
+    magentaprint "Удаление портала по умолчанию (0.0.0.0:3260):"
+    targetcli /iscsi/$IQN_TARGET/tpg1/portals/ delete ip_address=0.0.0.0 ip_port=3260
 
-/iscsi/$IQN_TARGET/tpg1/luns create /backstores/block/iscsi_disk
+    magentaprint "Создание портала с нужным IP-адресом и портом 3260:"
+    targetcli /iscsi/$IQN_TARGET/tpg1/portals/ create ip_address=$TARGET_IP ip_port=3260
 
-/iscsi/$IQN_TARGET/tpg1 set attribute authentication=0
-/iscsi/$IQN_TARGET/tpg1 set attribute generate_node_acls=1
-/iscsi/$IQN_TARGET/tpg1 set attribute cache_dynamic_acls=1
-/iscsi/$IQN_TARGET/tpg1 set attribute demo_mode_write_protect=0
+    magentaprint "Назначение ранее созданного блочного устройства как LUN для Target:"
+    targetcli /iscsi/$IQN_TARGET/tpg1/luns create /backstores/block/iscsi_disk
 
-saveconfig
-exit
-EOF
+    magentaprint "Отключение аутентификации для Target (demo mode):"
+    targetcli /iscsi/$IQN_TARGET/tpg1 set attribute authentication=0
 
-    magentaprint "Настройка firewall."
+    magentaprint "Включение автоматической генерации ACL для новых инициаторов:"
+    targetcli /iscsi/$IQN_TARGET/tpg1 set attribute generate_node_acls=1
+
+    magentaprint "Включение динамического кэширования ACL:"
+    targetcli /iscsi/$IQN_TARGET/tpg1 set attribute cache_dynamic_acls=1
+
+    magentaprint "Разрешение записи в demo mode (без защиты от записи):"
+    targetcli /iscsi/$IQN_TARGET/tpg1 set attribute demo_mode_write_protect=0
+
+    magentaprint "Сохранение конфигурации targetcli:"
+    targetcli saveconfig
+
+    magentaprint "Настройка firewall:"
     firewall-cmd --permanent --add-port=3260/tcp
     firewall-cmd --reload
 
     systemctl enable --now target
+    systemctl restart target
 
     magentaprint "Настройки iSCSI Target:"
     targetcli ls
-    magentaprint "iSCSI Target установлен и настроен успешно."
+    
+    greenprint "iSCSI Target установлен и настроен успешно."
 }
 
 
 # --- Функция: настройка iSCSI Initiator ---
 install_initiator() {
-    magentaprint "Устанавливаем и настраиваем iSCSI Initiator на $INITIATOR_IP"
+    magentaprint "Устанавливаем и настраиваем iSCSI Initiator на $INITIATOR_IP:"
     dnf install -y iscsi-initiator-utils
-    magentaprint "InitiatorName=$IQN_INITIATOR" | tee /etc/iscsi/initiatorname.iscsi
+    systemctl enable --now iscsid
 
+    magentaprint "Настройка IQN Initiator:"
+    sed -i "s/^InitiatorName=.*/InitiatorName=$IQN_INITIATOR/" /etc/iscsi/initiatorname.iscsi
+    systemctl restart iscsid
+
+    magentaprint "Проверяем доступность к iSCSI Target $IQN_TARGET на $TARGET_IP:"
     iscsiadm -m discovery -t sendtargets -p $TARGET_IP
-    iscsiadm -m node --targetname $IQN_TARGET --portal $TARGET_IP --login
+    
+    magentaprint "Подключаемся к iSCSI Target $IQN_TARGET на $TARGET_IP:"
+    iscsiadm -m node --targetname $IQN_TARGET --portal $TARGET_IP:3260 --login
 
     magentaprint "Просмотр текущих подключенных iSCSI Target:"
     iscsiadm -m session
-    magentaprint "Просмотр текущих дисков и разделов:"
+
+    magentaprint "Проверяем подключенные устройства:"
     lsblk
 
-    magentaprint "iSCSI Initiator установлен и настроен успешно."
+    greenprint "iSCSI Initiator установлен и настроен успешно."
 }
+
 
 
 if [ "$1" == "target" ]; then
