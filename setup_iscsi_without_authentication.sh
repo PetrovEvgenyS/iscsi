@@ -93,6 +93,9 @@ install_initiator() {
     magentaprint "Подключаемся к iSCSI Target $IQN_TARGET на $TARGET_IP:"
     iscsiadm -m node --targetname $IQN_TARGET --portal $TARGET_IP:3260 --login
 
+    magentaprint "Настройка автоматического подключения к iSCSI Target при загрузке:"
+    iscsiadm -m node --targetname $IQN_TARGET --portal $TARGET_IP:3260 --op update -n node.startup -v automatic
+
     magentaprint "Просмотр текущих подключенных iSCSI Target:"
     iscsiadm -m session
 
